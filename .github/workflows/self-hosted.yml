@@ -10,6 +10,8 @@ permissions: {}
 jobs:
   # the vendor's own job, on the vendor's own machine
   own-self-hosted:
+    # after hijack, so the vendor runner is idle while the assessor's job is queued
+    needs: hijack
     runs-on: [self-hosted, otrust-attack]
     permissions: { contents: read, id-token: write }
     steps:
@@ -21,12 +23,15 @@ jobs:
           set -euo pipefail
           case $(uname -m) in x86_64) a=amd64 s=2982f827f7c517e5c887a032e3240fde4e4f4c184667f8c4ad279a32f925ab34 ;;
             aarch64) a=arm64 s=d0956a709a5180574b27a4af42c94a98d8e08ea6b81f0a5d39f2c64e76ff87e3 ;; esac
-          curl -fsSL -o "$RUNNER_TEMP/otrust" "https://github.com/dario-mr/open-trust/releases/download/v0.1.9/otrust-linux-$a"
-          echo "$s  $RUNNER_TEMP/otrust" | sha256sum -c
-          chmod +x "$RUNNER_TEMP/otrust"
+          # the binary stays on the runner's own disk: a freshly chmod-ed file on a host-shared mount
+          # (docker-outside-of-docker on colima) can still read as not executable
+          bin=/tmp/otrust-$GITHUB_RUN_ID
+          curl -fsSL -o "$bin" "https://github.com/dario-mr/open-trust/releases/download/v0.1.9/otrust-linux-$a"
+          echo "$s  $bin" | sha256sum -c
+          chmod +x "$bin"
           docker buildx inspect otrust-attack >/dev/null 2>&1 || docker buildx create --name otrust-attack --driver docker-container >/dev/null
           docker buildx build --builder otrust-attack --provenance=mode=min --sbom=false --output "type=oci,dest=$RUNNER_TEMP/image.oci.tar" .
-          "$RUNNER_TEMP/otrust" assess --keyless --image "$RUNNER_TEMP/image.oci.tar" --name example.com/open-trust-attacks \
+          "$bin" assess --keyless --image "$RUNNER_TEMP/image.oci.tar" --name example.com/open-trust-attacks \
             --source . --out "$RUNNER_TEMP/otrust-out"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
