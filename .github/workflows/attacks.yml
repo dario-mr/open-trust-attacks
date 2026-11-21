@@ -1,0 +1,92 @@
+# Attacks on GitHub-hosted runners. Each job produces a certificate a strict buyer should judge:
+# only assessor-current may verify against a trust policy pinned to the current assessor.
+name: attacks
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write      # sign the build provenance
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build an OCI tar
+        run: docker buildx build --provenance=mode=min --sbom=false --output type=oci,dest=image.oci.tar .
+      - name: Image manifest digest
+        id: digest
+        run: |
+          idx=$(tar -xOf image.oci.tar index.json | jq -r '.manifests[0].digest')
+          d=$(tar -xOf image.oci.tar "blobs/sha256/${idx#sha256:}" | jq -r '[.manifests[] | select(.annotations["vnd.docker.reference.type"] != "attestation-manifest")] | .[0].digest')
+          echo "digest=$d" >> "$GITHUB_OUTPUT"
+      - name: Attest build provenance
+        id: attest
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: example.com/open-trust-attacks
+          subject-digest: ${{ steps.digest.outputs.digest }}
+          create-storage-record: false
+      - run: cp "${{ steps.attest.outputs.bundle-path }}" provenance.sigstore.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: image
+          path: |
+            image.oci.tar
+            provenance.sigstore.json
+          if-no-files-found: error
+
+  # control: the current assessor, pinned by commit, used honestly
+  assessor-current:
+    needs: build
+    permissions: { contents: read, id-token: write, packages: read }
+    uses: dario-mr/open-trust/.github/workflows/assess.yml@5717e68a21ac99225eccff6850dd90e096ceda94 # v0.1.9
+    with: { image-artifact: image, subject-name: example.com/open-trust-attacks, artifact-suffix: assessor-current }
+
+  # the real assessor, but at a moving ref
+  assessor-main:
+    needs: build
+    permissions: { contents: read, id-token: write, packages: read }
+    uses: dario-mr/open-trust/.github/workflows/assess.yml@main
+    with: { image-artifact: image, subject-name: example.com/open-trust-attacks, artifact-suffix: assessor-main }
+
+  # the real assessor at an old release (v0.1.4: Java-only SAST rules)
+  assessor-old:
+    needs: build
+    permissions: { contents: read, id-token: write, packages: read }
+    uses: dario-mr/open-trust/.github/workflows/assess.yml@345a2464cdb337b60159f74d235d2d010e7e6b33 # v0.1.4
+    with: { image-artifact: image, subject-name: example.com/open-trust-attacks, artifact-suffix: assessor-old }
+
+  # no isolated assessor at all: the vendor's own job runs otrust and signs. It could sign anything.
+  own-pipeline:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions: { contents: read, id-token: write }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: image
+          path: ${{ runner.temp }}/image
+      - name: Assess and sign in the vendor's own job
+        run: |
+          set -euo pipefail
+          curl -fsSL -o "$RUNNER_TEMP/otrust" https://github.com/dario-mr/open-trust/releases/download/v0.1.9/otrust-linux-amd64
+          echo "2982f827f7c517e5c887a032e3240fde4e4f4c184667f8c4ad279a32f925ab34  $RUNNER_TEMP/otrust" | sha256sum -c
+          chmod +x "$RUNNER_TEMP/otrust"
+          "$RUNNER_TEMP/otrust" assess --keyless --image "$RUNNER_TEMP/image/image.oci.tar" --provenance "$RUNNER_TEMP/image/provenance.sigstore.json" \
+            --name example.com/open-trust-attacks --source . --out "$RUNNER_TEMP/otrust-out"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: otrust-own-pipeline
+          path: ${{ runner.temp }}/otrust-out
