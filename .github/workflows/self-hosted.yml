@@ -37,7 +37,9 @@ jobs:
         if: always()
         with:
           name: otrust-own-self-hosted
-          path: ${{ runner.temp }}/otrust-out
+          path: |
+            ${{ runner.temp }}/otrust-out
+            ${{ runner.temp }}/image.oci.tar
 
   # the isolated assessor asks for runs-on: ubuntu-24.04; can a vendor runner with that label take it?
   build:
