@@ -21,12 +21,12 @@ jobs:
       - name: Build, assess and sign on the vendor's runner
         run: |
           set -euo pipefail
-          case $(uname -m) in x86_64) a=amd64 s=2982f827f7c517e5c887a032e3240fde4e4f4c184667f8c4ad279a32f925ab34 ;;
-            aarch64) a=arm64 s=d0956a709a5180574b27a4af42c94a98d8e08ea6b81f0a5d39f2c64e76ff87e3 ;; esac
+          case $(uname -m) in x86_64) a=amd64 s=d317f7d9ad521fb90a68d503c12305d3020dba75a3e24a0912fadb22697a8c4f ;;
+            aarch64) a=arm64 s=25691c5472caabf42cabe84a3b1f8c09e9884701636680cb5751c60572d4bd64 ;; esac
           # the binary stays on the runner's own disk: a freshly chmod-ed file on a host-shared mount
           # (docker-outside-of-docker on colima) can still read as not executable
           bin=/tmp/otrust-$GITHUB_RUN_ID
-          curl -fsSL -o "$bin" "https://github.com/dario-mr/open-trust/releases/download/v0.1.9/otrust-linux-$a"
+          curl -fsSL -o "$bin" "https://github.com/dario-mr/open-trust/releases/download/v0.1.16/otrust-linux-$a"
           echo "$s  $bin" | sha256sum -c
           chmod +x "$bin"
           docker buildx inspect otrust-attack >/dev/null 2>&1 || docker buildx create --name otrust-attack --driver docker-container >/dev/null
@@ -59,7 +59,7 @@ jobs:
   hijack:
     needs: build
     permissions: { contents: read, id-token: write, packages: read }
-    uses: dario-mr/open-trust/.github/workflows/assess.yml@5717e68a21ac99225eccff6850dd90e096ceda94 # v0.1.9
+    uses: dario-mr/open-trust/.github/workflows/assess.yml@09477585a21fdceacc434126c751fa018cad8c09 # v0.1.16
     with:
       image-artifact: image
       subject-name: example.com/open-trust-attacks

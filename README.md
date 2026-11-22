@@ -9,7 +9,8 @@ certificates; `open-trust/demo/attacks/run.sh` verifies them as a strict buyer a
 |---|---|
 | `attacks.yml` / `assessor-current` | Control: the pinned Open Trust assessor, honestly |
 | `attacks.yml` / `assessor-main` | The assessor at an unpinned ref (`@main`) |
-| `attacks.yml` / `assessor-old` | An outdated assessor (v0.1.4) |
+| `attacks.yml` / `assessor-prev` | An older assessor of the current profile (0.1.15) |
+| `attacks.yml` / `assessor-old` | An outdated assessor (v0.1.4, an earlier profile) |
 | `attacks.yml` / `own-pipeline` | Skip the isolated assessor: sign with the vendor's own job |
 | `self-hosted.yml` / `own-self-hosted` | The vendor's own job on a vendor-controlled runner |
 | `self-hosted.yml` / `hijack` | Route the isolated assessor's job onto a vendor runner labelled `ubuntu-24.04` |

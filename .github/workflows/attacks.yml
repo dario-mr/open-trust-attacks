@@ -47,7 +47,7 @@ jobs:
   assessor-current:
     needs: build
     permissions: { contents: read, id-token: write, packages: read }
-    uses: dario-mr/open-trust/.github/workflows/assess.yml@5717e68a21ac99225eccff6850dd90e096ceda94 # v0.1.9
+    uses: dario-mr/open-trust/.github/workflows/assess.yml@09477585a21fdceacc434126c751fa018cad8c09 # v0.1.16
     with: { image-artifact: image, subject-name: example.com/open-trust-attacks, artifact-suffix: assessor-current }
 
   # the real assessor, but at a moving ref
@@ -57,7 +57,14 @@ jobs:
     uses: dario-mr/open-trust/.github/workflows/assess.yml@main
     with: { image-artifact: image, subject-name: example.com/open-trust-attacks, artifact-suffix: assessor-main }
 
-  # the real assessor at an old release (v0.1.4: Java-only SAST rules)
+  # an older assessor of the current profile (1.2.0), at version 0.1.15: what minAgentVersion is for
+  assessor-prev:
+    needs: build
+    permissions: { contents: read, id-token: write, packages: read }
+    uses: dario-mr/open-trust/.github/workflows/assess.yml@8786d841a11ca96c3b8990d68dafde8f63c2ce8d # 0.1.15, profile 1.2.0
+    with: { image-artifact: image, subject-name: example.com/open-trust-attacks, artifact-suffix: assessor-prev }
+
+  # the real assessor at an old release (v0.1.4: Java-only SAST rules, profile 1.0.0)
   assessor-old:
     needs: build
     permissions: { contents: read, id-token: write, packages: read }
@@ -80,8 +87,8 @@ jobs:
       - name: Assess and sign in the vendor's own job
         run: |
           set -euo pipefail
-          curl -fsSL -o "$RUNNER_TEMP/otrust" https://github.com/dario-mr/open-trust/releases/download/v0.1.9/otrust-linux-amd64
-          echo "2982f827f7c517e5c887a032e3240fde4e4f4c184667f8c4ad279a32f925ab34  $RUNNER_TEMP/otrust" | sha256sum -c
+          curl -fsSL -o "$RUNNER_TEMP/otrust" https://github.com/dario-mr/open-trust/releases/download/v0.1.16/otrust-linux-amd64
+          echo "d317f7d9ad521fb90a68d503c12305d3020dba75a3e24a0912fadb22697a8c4f  $RUNNER_TEMP/otrust" | sha256sum -c
           chmod +x "$RUNNER_TEMP/otrust"
           "$RUNNER_TEMP/otrust" assess --keyless --image "$RUNNER_TEMP/image/image.oci.tar" --provenance "$RUNNER_TEMP/image/provenance.sigstore.json" \
             --name example.com/open-trust-attacks --source . --out "$RUNNER_TEMP/otrust-out"
